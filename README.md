@@ -31,14 +31,14 @@ There are some functions in nsmClient you can call directly, without a callback.
 If your program sends those messages set supportsSaveStatus = True when intializing NSMClient()
 
 ## Long Instructions
-Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
-For your own program read and learn the NSM API: http://non.tuxfamily.org/nsm/API.html
-The hard part about session management is not to use this lib or write your own but to make your program comply to the strict rules of session management.
+* Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
+* For your own program read and learn the NSM API: http://non.tuxfamily.org/nsm/API.html
+* The hard part about session management is not to use this lib or write your own but to make your program comply to the strict rules of session management.
 
 ## Sources and Influences
-The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
-With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
-API documentation: http://non.tuxfamily.org/nsm/API.html
+* The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
+* With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
+* API documentation: http://non.tuxfamily.org/nsm/API.html
 
 ## TODO
 * Support for Hiding and Showing the programs GUI
