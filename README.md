@@ -2,9 +2,10 @@
 Non Session Manager client library in Python - Version2: No dependencies except Python3.
 
 PyNSMClient 2.0 -  A Non Session Manager Client-Library in one file.
-Copyright (c) 2015, Nils Gey <ich@nilsgey.de> http://www.nilsgey.de, All rights reserved.
-This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public
 
+Copyright (c) 2015, Nils Gey <ich@nilsgey.de> http://www.nilsgey.de, All rights reserved.
+
+This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public
 
 Short Instructions:
 Copy nsmclient.py to your program and import and initialize it as early as possible
@@ -18,13 +19,15 @@ Copy nsmclient.py to your program and import and initialize it as early as possi
         loggingLevel = "info", #"info" for development or debugging, "error" for production. default is error.
         )
 
-Each of the callbacks (save, open/new and exit) receive three parameters: ourPath, sessionName, ourClientNameUnderNSM.
-openOrNew gets called first. Init your jack client there with ourClientNameUnderNSM as name.
-exitProgramCallback is the place to gracefully exit your program, including jack-client closing.
-saveCallback gets called all the time. Use ourPath either as filename or as directory. If you choose a directory make sure that the filenames inside are static, no matter what session, and that the user has no influence over them.
+* Each of the callbacks (save, open/new and exit) receive three parameters: ourPath, sessionName, ourClientNameUnderNSM.
+* openOrNew gets called first. Init your jack client there with ourClientNameUnderNSM as name.
+* exitProgramCallback is the place to gracefully exit your program, including jack-client closing.
+* saveCallback gets called all the time. Use ourPath either as filename or as directory. If you choose a directory make sure that the filenames inside are static, no matter what session, and that the user has no influence over them.
 
 There are some functions in nsmClient you can call directly, without a callback. Such as announcing your save status (dirty/clean):
+
     nsmClient.announceSaveStatus(False)
+
 If your program sends those messages set supportsSaveStatus = True when intializing NSMCLient()
 
 Long Instructions:
