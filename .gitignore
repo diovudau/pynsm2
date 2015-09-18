@@ -1,0 +1,9 @@
+# Lines starting with '#' are considered comments.
+
+# Ignore (compiled) python files,
+*__pycache__/*
+*.pyc
+*.c
+*.o
+*.so
+*.cpp
