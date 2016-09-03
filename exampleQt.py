@@ -9,6 +9,7 @@ irc.freenode.org #laborejo
 """
 
 import sys #for qt app args.
+from os import getpid #we use this as jack meta data
 from PyQt5 import QtWidgets, QtCore
 
 #jack only
@@ -99,8 +100,10 @@ class Main(QtWidgets.QWidget):
         We have a chance to close our clients and open connections here.
         If not nsmclient will just kill us no matter what
         """
+        cjack.jack_remove_properties(ctypesJackClient, ctypesJackUuid) #clean our metadata
         cjack.jack_client_close(ctypesJackClient) #omitting this introduces problems. in Jack1 this would mute all jack clients for several seconds.
-        #Exit is done by NSM kill.
+        exit() #or kill through NSM
+
 
 
 #Prepare the window instace. Gets executed at the end of this file.
@@ -115,11 +118,10 @@ cjack = ctypes.cdll.LoadLibrary("libjack.so.0")
 clientName = ourClient.nsmClient.prettyName #the nsm client is in the qt instance here. But in your program it can be anywhere.
 options = 0
 status = None
-cjack.jack_client_open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]  #the two ints are enum and pointer to enum. #http://jackaudio.org/files/docs/html/group__ClientFunctions.html#gab8b16ee616207532d0585d04a0bd1d60
 
 class jack_client_t(ctypes.Structure):
     _fields_ = []
-
+cjack.jack_client_open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]  #the two ints are enum and pointer to enum. #http://jackaudio.org/files/docs/html/group__ClientFunctions.html#gab8b16ee616207532d0585d04a0bd1d60
 cjack.jack_client_open.restype = ctypes.POINTER(jack_client_t)
 ctypesJackClient = cjack.jack_client_open(clientName.encode("ascii"), options, status)
 
@@ -163,12 +165,25 @@ cjack.jack_set_process_callback.argtypes = [ctypes.POINTER(jack_client_t), JACK_
 cjack.jack_set_process_callback.restype = ctypes.c_uint32 #I think this is redundant since ctypes has int as default result type
 cjack.jack_set_process_callback(ctypesJackClient, callbackFunction, 0)
 
-
 #Ready. Activate the client.
 cjack.jack_activate(ctypesJackClient)
+#The Jack Processing functions gets called by jack in another thread. We just have to keep this program itself running. Qt does the job.
 
-#The Jack Processing functions gets called by jack in another thread. We just have to keep this program itself running. There is an event loop at the end of this file.
 
+#Jack Metadata - Inform the jack server about our program. Optional but has benefits when used with other programs that rely on metadata.
+#http://jackaudio.org/files/docs/html/group__Metadata.html
+jack_uuid_t = ctypes.c_uint64
+cjack.jack_set_property.argtypes = [ctypes.POINTER(jack_client_t), jack_uuid_t, ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p)]  #client(we), subject/uuid,key,value/data,type
+cjack.jack_remove_properties.argtypes = [ctypes.POINTER(jack_client_t), jack_uuid_t] #for cleaning up when the program stops. the jack server can do it in newer jack versions, but this is safer.
+
+cjack.jack_get_uuid_for_client_name.argtypes = [ctypes.POINTER(jack_client_t), ctypes.c_char_p]
+cjack.jack_get_uuid_for_client_name.restype = ctypes.c_char_p
+
+ourJackUuid = cjack.jack_get_uuid_for_client_name(ctypesJackClient, clientName.encode("ascii"))
+ourJackUuid = int(ourJackUuid.decode("UTF-8"))
+ctypesJackUuid = jack_uuid_t(ourJackUuid)
+
+cjack.jack_set_property(ctypesJackClient, ctypesJackUuid, ctypes.c_char_p(b"pid"), ctypes.c_char_p(str(getpid()).encode()), None)
 
 ##################
 #Start everything

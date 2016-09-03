@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PyNSMClient 2.0 -  A Non Session Manager Client-Library in one file.
-Copyright (c) 2014, Nils Gey <ich@nilsgey.de> http://www.nilsgey.de, All rights reserved.
+Copyright (c) 2014-2016, Nils Gey <ich@nilsgey.de> http://www.nilsgey.de, All rights reserved.
 The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
 With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
 
@@ -415,3 +415,18 @@ class NSMClient(object):
         kill(getpid(), SIGKILL)
         logging.error("SIGKILL did nothing. Do it manually.")
 
+class NullClient(object):
+    """Use this as a drop-in replacement if you program has a mode without NSM but you don't want
+    to change the code itself.
+    This was originally written for programs that have a core-engine and normal mode of operations
+    is a GUI with NSM but they also support commandline-scripts and batch processing.
+    For these you don't want NSM."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def announceSaveStatus(self, *args):
+        pass
+
+    def announceGuiVisibility(self, *args):
+        pass
