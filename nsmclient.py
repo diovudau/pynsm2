@@ -233,6 +233,10 @@ class NSMClient(object):
     E.g. a Qt timer or just a simple while True: sleep(0.1) in Python."""
     def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback = None, showGUICallback = None, loggingLevel = "info"):
 
+        self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
+
+        self.realClient = True
+
         if loggingLevel == "info":
             logging.basicConfig(level=logging.INFO)  #for testing
             logging.info("Starting PyNSM2 Client with logging level INFO.")
@@ -240,9 +244,6 @@ class NSMClient(object):
             logging.basicConfig(level=logging.ERROR) #for production
         else:
             raise ValueError("Unknown logging level: {}. Choose 'info' or 'error'".format(loggingLevel))
-
-
-        self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
         #given parameters,
         self.prettyName = prettyName #keep this consistent! Settle for one name.
@@ -416,17 +417,20 @@ class NSMClient(object):
         logging.error("SIGKILL did nothing. Do it manually.")
 
 class NullClient(object):
-    """Use this as a drop-in replacement if you program has a mode without NSM but you don't want
+    """Use this as a drop-in replacement if your program has a mode without NSM but you don't want
     to change the code itself.
     This was originally written for programs that have a core-engine and normal mode of operations
     is a GUI with NSM but they also support commandline-scripts and batch processing.
     For these you don't want NSM."""
 
     def __init__(self, *args, **kwargs):
-        pass
+        self.realClient = False
 
     def announceSaveStatus(self, *args):
         pass
 
     def announceGuiVisibility(self, *args):
+        pass
+
+    def reactToMessage(self):
         pass
