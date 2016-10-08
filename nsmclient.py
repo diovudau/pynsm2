@@ -238,6 +238,7 @@ class NSMClient(object):
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
         self.realClient = True
+        self._cachedIsClean = True #save status checks for this.
 
         if loggingLevel == "info":
             logging.basicConfig(level=logging.INFO)  #for testing
@@ -279,7 +280,10 @@ class NSMClient(object):
         self.ourPath = None
         self.ourClientNameUnderNSM = None
         self.announceOurselves()
-        assert self.serverFeatures and self.sessionName and self.ourPath and self.ourClientNameUnderNSM
+        assert self.serverFeatures, self.serverFeatures
+        assert self.sessionName, self.sessionName
+        assert self.ourPath, self.ourPath
+        assert self.ourClientNameUnderNSM, self.ourClientNameUnderNSM
 
         self.sock.setblocking(False) #We have waited for tha handshake. Now switch blocking off because we expect sock.recvfrom to be empty in 99.99...% of the time so we shouldn't wait for the answer.
         #After this point the host must include self.reactToMessage in its event loop
@@ -304,10 +308,10 @@ class NSMClient(object):
         """
         #TODO: I really don't know how to find out the name of the bash script
         fullPath = argv[0]
-        assert os.path.dirname(fullPath) in os.environ["PATH"] #NSM requires the executable to be in the path. No excuses. This will never happen since the reference NSM server-GUI already checks for this.
+        assert os.path.dirname(fullPath) in os.environ["PATH"], (fullPath, os.path.dirname(fullPath), os.environ["PATH"]) #NSM requires the executable to be in the path. No excuses. This will never happen since the reference NSM server-GUI already checks for this.
 
         executableName = os.path.basename(fullPath)
-        assert not "/" in executableName #see above.
+        assert not "/" in executableName, executableName #see above.
         return executableName
 
     def announceOurselves(self):
@@ -340,15 +344,15 @@ class NSMClient(object):
         #Wait for /reply (aka 'Howdy, what took you so long?)
         data, addr = self.sock.recvfrom(1024)
         msg = _IncomingMessage(data)
-        assert msg.oscpath == "/reply"
+        assert msg.oscpath == "/reply", msg.oscpath
         nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
-        assert nsmAnnouncePath == "/nsm/server/announce"
+        assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
         logging.info("Got /reply 'Howdy, what took you so long' from NSM.")
 
         #Wait for /nsm/client/open
         data, addr = self.sock.recvfrom(1024)
         msg = _IncomingMessage(data)
-        assert msg.oscpath == "/nsm/client/open"
+        assert msg.oscpath == "/nsm/client/open", msg.oscpath
         self.ourPath, self.sessionName, self.ourClientNameUnderNSM = msg.params
         logging.info("Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
         self.openOrNewCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM) #Host function to either load an existing session or create a new one.
@@ -365,10 +369,13 @@ class NSMClient(object):
         self.sock.sendto(guiVisibility.build(), self.nsmOSCUrl)
 
     def announceSaveStatus(self, isClean):
-        message = "/nsm/client/is_clean" if isClean else "/nsm/client/is_dirty"
-        saveStatus = _OutgoingMessage(message)
-        logging.info("Telling NSM that our clients save state is now: {}".format(message))
-        self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
+        """Only send to the NSM Server if there was really a change"""
+        if not isClean == self._cachedIsClean:
+            message = "/nsm/client/is_clean" if isClean else "/nsm/client/is_dirty"
+            self._cachedIsClean = isClean
+            saveStatus = _OutgoingMessage(message)
+            logging.info("Telling NSM that our clients save state is now: {}".format(message))
+            self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
 
     def _saveCallback(self):
         logging.info("Telling our client to save as {}".format(self.ourPath))
