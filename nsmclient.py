@@ -151,7 +151,9 @@ class _IncomingMessage(object):
                     continue
                 self._parameters.append(val)
         except ValueError as pe:
-            raise ValueError('Found incorrect datagram, ignoring it', pe)
+            #raise ValueError('Found incorrect datagram, ignoring it', pe)
+            # Raising an error is not ignoring it!
+            print('Found incorrect datagram, ignoring it', pe)
 
     @property
     def oscpath(self):
