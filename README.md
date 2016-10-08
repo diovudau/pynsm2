@@ -49,3 +49,4 @@ The nsmClient object has methods and variables such as:
 ## TODO
 * Support for Hiding and Showing the programs GUI
 * Convenience for programs that can change the session without restarting.
+* Full NSM API support in general
