@@ -32,6 +32,7 @@ import os.path
 from sys import argv
 import logging
 from signal import signal, SIGTERM, SIGINT, SIGKILL #react to exit signals to close the client gracefully. Or kill if the client fails to do so.
+from urllib.parse import urlparse
 
 class _IncomingMessage(object):
     """Representation of a parsed datagram representing an OSC message.
@@ -297,11 +298,8 @@ class NSMClient(object):
             raise NSMNotRunningError(self.ourClientNameUnderNSM + ":Non-Session-Manager environment variable $NSM_URL not found. Only start this program through the non-session-manager")
         else:
             #osc.udp://hostname:portnumber/
-            nsmOSCUrl = nsmOSCUrl.rstrip("/")
-            nsmOSCUrl = nsmOSCUrl.lstrip("osc.udp://")
-            NSM_IP, NSM_PORT = nsmOSCUrl.split(":")
-            nsmOSCUrl = (NSM_IP, int(NSM_PORT))
-            return nsmOSCUrl
+            o = urlparse(nsmOSCUrl)
+            return o.hostname, o.port
 
     def getExecutableName(self):
         """Finding the actual executable name can be a bit hard
