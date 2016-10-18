@@ -102,11 +102,15 @@ class Main(QtWidgets.QWidget):
         """
         cjack.jack_remove_properties(ctypesJackClient, ctypesJackUuid) #clean our metadata
         cjack.jack_client_close(ctypesJackClient) #omitting this introduces problems. in Jack1 this would mute all jack clients for several seconds.
-        exit() #or kill through NSM
+        exit() #or get SIGKILLed through NSM
 
+    def closeEvent(self, event):
+        """Qt likes to quits on its own. For example when the window manager closes the
+        main window. Ignore that request and instead send a roundtrip through NSM"""
+        self.nsmClient.serverSendExitToSelf()
+        event.ignore()
 
-
-#Prepare the window instace. Gets executed at the end of this file.
+#Prepare the window instance. Gets executed at the end of this file.
 qtApp = QtWidgets.QApplication(sys.argv)
 ourClient = Main(qtApp)
 

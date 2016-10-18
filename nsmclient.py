@@ -31,7 +31,7 @@ from os import getenv, getpid, kill
 import os.path
 from sys import argv
 import logging
-from signal import signal, SIGTERM, SIGKILL #react to exit signals to close the client gracefully. Or kill if the client fails to do so.
+from signal import signal, SIGTERM, SIGINT, SIGKILL #react to exit signals to close the client gracefully. Or kill if the client fails to do so.
 
 class _IncomingMessage(object):
     """Representation of a parsed datagram representing an OSC message.
@@ -273,12 +273,14 @@ class NSMClient(object):
 
         #UNIX Signals. Used for quit.
         signal(SIGTERM, self.sigtermHandler) #NSM sends only SIGTERM. #TODO: really? pynsm version 1 handled sigkill as well.
+        signal(SIGINT, self.sigtermHandler)
 
         #The following instance parameters are all set in announceOurselves
         self.serverFeatures = None
         self.sessionName = None
         self.ourPath = None
         self.ourClientNameUnderNSM = None
+        self.ourClientId = None # the "file extension" of ourClientNameUnderNSM
         self.announceOurselves()
         assert self.serverFeatures, self.serverFeatures
         assert self.sessionName, self.sessionName
@@ -354,6 +356,7 @@ class NSMClient(object):
         msg = _IncomingMessage(data)
         assert msg.oscpath == "/nsm/client/open", msg.oscpath
         self.ourPath, self.sessionName, self.ourClientNameUnderNSM = msg.params
+        self.ourClientId = os.path.splitext(self.ourClientNameUnderNSM)[1][1:]
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
         self.openOrNewCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM) #Host function to either load an existing session or create a new one.
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Our client should be done loading or creating the file {}".format(self.ourPath))
@@ -416,14 +419,35 @@ class NSMClient(object):
         It is possible, that the client does not implement quit
         properly. In that case NSM protocol demands that we quit anyway.
         No excuses.
+
+        Achtung GDB! If you run your program with
+            gdb --args python foo.py
+        the Python signal handler will not work. This has nothing to do with this library.
         """
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: pynsm2: Telling our client to quit.")
+        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling our client to quit.")
         self.exitProgramCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM)
         #There is a chance that exitProgramCallback will hang and the program won't quit. However, this is broken design and bad programming. We COULD place a timeout here and just kill after 10s or so, but that would make quitting our responsibility and fixing a broken thing.
         #If we reach this point we have reached the point of no return. Say goodbye.
         logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Client did not quit on its own. Sending SIGKILL.")
         kill(getpid(), SIGKILL)
         logging.error(self.ourClientNameUnderNSM + ":pynsm2: pynsm2: SIGKILL did nothing. Do it manually.")
+
+
+    def serverSendExitToSelf(self):
+        """If you want a very strict client you can block any non-NSM quit-attempts, like ignoring a
+        qt closeEvent, and instead send the NSM Server a request to close this client.
+        This method is a shortcut to do just that."""
+
+        logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send SIGTERM to ourselves.")
+        if False:#  "server-control" in self.serverFeatures:
+            replyToSave = _OutgoingMessage("/nsm/server/stop")
+            replyToSave.add_arg("{}".format(self.ourClientId))
+            self.sock.sendto(replyToSave.build(), self.nsmOSCUrl)
+        else:
+            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Quitting on our own. Server only supports: {}".format(self.serverFeatures))
+            kill(getpid(), SIGTERM) #this calls the exit callback but nsm will output something like "client died unexpectedly."
+
+
 
 class NullClient(object):
     """Use this as a drop-in replacement if your program has a mode without NSM but you don't want
@@ -443,3 +467,6 @@ class NullClient(object):
 
     def reactToMessage(self):
         pass
+
+    def serverSendExitToSelf(self):
+        quit()
