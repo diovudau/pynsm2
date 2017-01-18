@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This is an example for pynsmclient2 by Nils Gey - 2015.
+"""This is an example for pynsmclient2 by Nils Hilbricht - 2017.
 You need PyQt5.
 Please contact me if you need explanation and help to create your own program:
-http://www.nilsgey.de
+http://www.hilbricht.net
 irc.freenode.org #laborejo
 """
 
