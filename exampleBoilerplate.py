@@ -66,6 +66,7 @@ nsmClient = NSMClient(prettyName = niceTitle,
                       openOrNewCallback = openCallback,
                       showGUICallback = showGUICallback,  # Comment this line out if your program does not have an optional GUI
                       hideGUICallback = hideGUICallback,  # Comment this line out if your program does not have an optional GUI
+                      supportsSaveStatus = False,         # Change this to True if your program announces it's save status to NSM
                       exitProgramCallback = exitProgram,
                       loggingLevel = "info", # "info" for development or debugging, "error" for production. default is error.
                       )
@@ -86,5 +87,6 @@ jackClientName = nsmClient.ourClientNameUnderNSM
 print("Entering main loop")
 
 while True:
-    nsmClient.reactToMessage()
+    nsmClient.reactToMessage()  # Make sure this exists somewhere in your main loop
+    # nsmClient.announceSaveStatus(False) # Announce your save status (dirty = False / clean = True)
     sleep(0.05)
