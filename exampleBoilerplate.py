@@ -7,7 +7,6 @@ http://www.nilsgey.de
 """
 
 from time import sleep              # main event loop at the bottom of this file
-import os                           # for running external commands
 # nsm only
 from nsmclient import NSMClient     # will raise an error and exit if this example is not run from NSM.
 
