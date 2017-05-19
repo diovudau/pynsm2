@@ -8,7 +8,7 @@ Copyright (c) 2014-2016, Nils Hilbricht <info@hilbricht.com> http://www.hilbrich
 This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public
 
 ## Short Instructions
-Copy nsmclient.py to your program and import and initialize it as early as possible.
+You can use exapleBoilerplate.py as a starting point, or copy nsmclient.py to your own program and import and initialize it as early as possible.
 Then add nsmClient.reactToMessage to your event loop.
 
     from nsmclient import NSMClient
@@ -16,6 +16,9 @@ Then add nsmClient.reactToMessage to your event loop.
         supportsSaveStatus = True,
         saveCallback = saveCallbackFunction,
         openOrNewCallback = openOrNewCallbackFunction,
+        showGUICallback = showGUICallback,  # Add this only if your program has an optional GUI
+        hideGUICallback = hideGUICallback,  # Add this only if your program has an optional GUI
+        supportsSaveStatus = False,         # Change this to True if your program announces it's save status to NSM
         exitProgramCallback = exitCallbackFunction,
         loggingLevel = "info", #"info" for development or debugging, "error" for production. default is error.
         )
@@ -47,6 +50,5 @@ The nsmClient object has methods and variables such as:
 * API documentation: http://non.tuxfamily.org/nsm/API.html
 
 ## TODO
-* Support for Hiding and Showing the programs GUI
 * Convenience for programs that can change the session without restarting.
 * Full NSM API support in general
