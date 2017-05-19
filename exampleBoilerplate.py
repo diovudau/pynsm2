@@ -60,7 +60,6 @@ def hideGUICallback():
 
 
 nsmClient = NSMClient(prettyName = niceTitle,
-                      supportsSaveStatus = True,
                       saveCallback = saveCallback,
                       openOrNewCallback = openCallback,
                       showGUICallback = showGUICallback,  # Comment this line out if your program does not have an optional GUI

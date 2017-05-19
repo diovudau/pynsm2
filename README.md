@@ -8,12 +8,11 @@ Copyright (c) 2014-2016, Nils Hilbricht <info@hilbricht.com> http://www.hilbrich
 This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public
 
 ## Short Instructions
-You can use exapleBoilerplate.py as a starting point, or copy nsmclient.py to your own program and import and initialize it as early as possible.
+You can use exampleBoilerplate.py as a starting point, or copy nsmclient.py to your own program and import and initialize it as early as possible.
 Then add nsmClient.reactToMessage to your event loop.
 
     from nsmclient import NSMClient
     nsmClient = NSMClient(prettyName = niceTitle, #will raise an error and exit if this example is not run from NSM.
-        supportsSaveStatus = True,
         saveCallback = saveCallbackFunction,
         openOrNewCallback = openOrNewCallbackFunction,
         showGUICallback = showGUICallback,  # Add this only if your program has an optional GUI
