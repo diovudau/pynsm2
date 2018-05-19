@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """This file is useless without nsmclient.py, which is part of
-pynsmclient2 by Nils Hilbricht - 2015
-http://www.nilsgey.de
+pynsmclient2 by Nils Hilbricht - 2018
+http://www.hilbricht.net
 """
 
 from time import sleep              # main event loop at the bottom of this file
