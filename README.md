@@ -15,10 +15,10 @@ Then add nsmClient.reactToMessage to your event loop.
     nsmClient = NSMClient(prettyName = niceTitle, #will raise an error and exit if this example is not run from NSM.
         saveCallback = saveCallbackFunction,
         openOrNewCallback = openOrNewCallbackFunction,
-        showGUICallback = showGUICallback,  # Add this only if your program has an optional GUI
-        hideGUICallback = hideGUICallback,  # Add this only if your program has an optional GUI
         supportsSaveStatus = False,         # Change this to True if your program announces it's save status to NSM
         exitProgramCallback = exitCallbackFunction,
+        hideGUICallback = None, #replace with your hiding function. You need to answer in your function with nsmClient.announceGuiVisibility(False)
+        showGUICallback = None,  #replace with your showing function. You need to answer in your function with nsmClient.announceGuiVisibility(True)
         loggingLevel = "info", #"info" for development or debugging, "error" for production. default is error.
         )
 
@@ -31,12 +31,18 @@ Don't forget to add nsmClient.reactToMessage to your event loop.
 * saveCallback gets called all the time. Use ourPath either as filename or as directory.
     * If you choose filename add an extension.
     * If you choose directory make sure that the filenames inside are static, no matter what project/session. The user must have no influence over file naming
+* Additional callbacks are: hideGUICallback and showGUICallback. These receive no parameters and need to answer with the function: nsmClient.announceGuiVisibility(bool). That means you can decline show or hide, dependending on the state of your program.
+
 
 The nsmClient object has methods and variables such as:
 
-    nsmClient.ourClientNameUnderNSM  # Always use this name for your program
-    nsmClient.announceSaveStatus(False) # Announce your save status (dirty = False / clean = True), If your program sends those messages set supportsSaveStatus = True when intializing NSMClient()
-    nsmClient.sessionName
+* nsmClient.ourClientNameUnderNSM
+  * Always use this name for your program
+* nsmClient.announceSaveStatus(False)
+  * Announce your save status (dirty = False / clean = True), If your program sends those messages set supportsSaveStatus = True when intializing NSMClient with both hideGUICallback and showGUICallback
+* nsmClient.sessionName
+* nsmClient.announceGuiVisibility(bool)
+  * Announce if your GUI is visible (True) or not (False). Only works if you initialized NSMClient with both hideGUICallback and showGUICallback. Don't forget to send it once for your state after starting your program.
 
 ## Long Instructions
 * Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
