@@ -281,6 +281,7 @@ class NSMClient(object):
         self.ourPath = None
         self.ourClientNameUnderNSM = None
         self.ourClientId = None # the "file extension" of ourClientNameUnderNSM
+        self.isVisible = None #set in announceGuiVisibility
         self.announceOurselves()
         assert self.serverFeatures, self.serverFeatures
         assert self.sessionName, self.sessionName
@@ -364,6 +365,7 @@ class NSMClient(object):
 
     def announceGuiVisibility(self, isVisible):
         message = "/nsm/client/gui_is_shown" if isVisible else "/nsm/client/gui_is_hidden"
+        self.isVisible = isVisible
         guiVisibility = _OutgoingMessage(message)
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling NSM that our clients switched GUI visibility to: {}".format(message))
         self.sock.sendto(guiVisibility.build(), self.nsmOSCUrl)
@@ -378,6 +380,7 @@ class NSMClient(object):
             self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
 
     def _saveCallback(self):
+        assert not self.isVisible is None
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling our client to save as {}".format(self.ourPath))
         self.saveCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM)
         replyToSave = _OutgoingMessage("/reply")
@@ -455,6 +458,7 @@ class NullClient(object):
 
     def __init__(self, *args, **kwargs):
         self.realClient = False
+        self.ourClientNameUnderNSM = "NSM Null Client"
 
     def announceSaveStatus(self, *args):
         pass
