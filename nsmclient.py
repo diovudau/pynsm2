@@ -470,7 +470,8 @@ class NSMClient(object):
         A hardlink does not count as a link and will be detected and treated as real file.
 
         Cleaning up a session directory is either responsibility of the user
-        or of our client program. We do not provide any
+        or of our client program. We do not provide any means to unlink or delete files from the
+        session directory.
         """
         filePath = os.path.abspath(filePath) #includes normalisation
         if not os.path.exists(self.ourPath):raise FileNotFoundError(self.ourPath)
@@ -500,7 +501,7 @@ class NSMClient(object):
             uniqueLinkedPath = firstpart + "." + uuid4().hex + extension
             assert not os.path.exists(uniqueLinkedPath)
             os.symlink(filePath, uniqueLinkedPath)
-            logging.info(self.ourClientNameUnderNSM + f":pynlen([name for name in os.listdir('.') if os.path.isfile(name)])sm2: tried to import external resource {filePath} but potential target link {linkedPath} already exists. Linked to {uniqueLinkedPath} instead.")
+            logging.info(self.ourClientNameUnderNSM + f":pysm2: tried to import external resource {filePath} but potential target link {linkedPath} already exists. Linked to {uniqueLinkedPath} instead.")
             linkedPath = uniqueLinkedPath
 
         else: #this is the "normal" case. External resources will be linked.
