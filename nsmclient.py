@@ -27,7 +27,9 @@ Read it here: https://www.gnu.org/licenses/lgpl.html
 import struct
 import socket
 from os import getenv, getpid, kill
+import os
 import os.path
+from uuid import uuid4
 from sys import argv
 import logging
 from signal import signal, SIGTERM, SIGINT, SIGKILL #react to exit signals to close the client gracefully. Or kill if the client fails to do so.
@@ -447,7 +449,67 @@ class NSMClient(object):
             logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Quitting on our own. Server only supports: {}".format(self.serverFeatures))
             kill(getpid(), SIGTERM) #this calls the exit callback but nsm will output something like "client died unexpectedly."
 
+    def importResource(self, filePath):
+        """aka. import into session
 
+        Symlinks given path into session dir and returns the linked path relative to the ourPath.
+        It can handles single files as well as whole directories.
+
+        if filePath is already a symlink we do not follow it. os.path.realpath or os.readlink will
+        not be used.
+
+        Multilayer links may indicate a users ordering system that depends on
+        abstractions. e.g. with mounted drives under different names which get symlinked to a
+        reliable path.
+
+        Basically do not question the type of our input filePath.
+
+        tar with the follow symlink option has os.path.realpath behaviour and therefore is able
+        to follow multiple levels of links anyway.
+
+        A hardlink does not count as a link and will be detected and treated as real file.
+
+        Cleaning up a session directory is either responsibility of the user
+        or of our client program. We do not provide any
+        """
+        filePath = os.path.abspath(filePath) #includes normalisation
+        if not os.path.exists(self.ourPath):raise FileNotFoundError(self.ourPath)
+        if not os.path.isdir(self.ourPath): raise NotADirectoryError(self.ourPath)
+        if not os.access(self.ourPath, os.W_OK): raise PermissionError("not writable", self.ourPath)
+
+        if not os.path.exists(filePath):raise FileNotFoundError(filePath)
+        if os.path.isdir(filePath): raise IsADirectoryError(filePath)
+        if not os.access(filePath, os.R_OK): raise PermissionError("not readable", filePath)
+
+
+        filePathInOurSession = os.path.commonprefix([filePath, self.ourPath]) == self.ourPath
+        linkedPath = os.path.join(self.ourPath, os.path.basename(filePath))
+        linkedPathAlreadyExists = os.path.exists(linkedPath)
+
+        if not os.access(os.path.dirname(linkedPath), os.W_OK): raise PermissionError("not writable", os.path.dirname(linkedPath))
+
+
+        if filePathInOurSession:
+            #loadResource from our session dir. Portable session, manually copied beforehand or just loading a link again.
+            linkedPath = filePath #we could return here, but we continue to get the tests below.
+            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this is already in our session directory. We use this file directly instead. ")
+
+        elif linkedPathAlreadyExists:
+            #A new file shall be imported but it would create a linked name which already exists in our session dir.
+            firstpart, extension = os.path.splitext(linkedPath)
+            uniqueLinkedPath = firstpart + "." + uuid4().hex + extension
+            assert not os.path.exists(uniqueLinkedPath)
+            os.symlink(filePath, uniqueLinkedPath)
+            logging.info(self.ourClientNameUnderNSM + f":pynlen([name for name in os.listdir('.') if os.path.isfile(name)])sm2: tried to import external resource {filePath} but potential target link {linkedPath} already exists. Linked to {uniqueLinkedPath} instead.")
+            linkedPath = uniqueLinkedPath
+
+        else: #this is the "normal" case. External resources will be linked.
+            assert not os.path.exists(linkedPath)
+            os.symlink(filePath, linkedPath)
+            logging.info(self.ourClientNameUnderNSM + f":pynsm2: imported external resource {filePath} as link {linkedPath}")
+
+        assert os.path.exists(linkedPath), linkedPath
+        return linkedPath
 
 class NullClient(object):
     """Use this as a drop-in replacement if your program has a mode without NSM but you don't want
@@ -468,6 +530,9 @@ class NullClient(object):
 
     def reactToMessage(self):
         pass
+
+    def importResource(self):
+        return ""
 
     def serverSendExitToSelf(self):
         quit()
