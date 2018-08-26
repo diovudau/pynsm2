@@ -45,6 +45,8 @@ The nsmClient object has methods and variables such as:
   * Announce if your GUI is visible (True) or not (False). Only works if you initialized NSMClient with both hideGUICallback and showGUICallback. Don't forget to send it once for your state after starting your program.
 * nsmClient.importResource(filepath)
   * Use this to load external resources, for example a sample file. It links the sample file into the session dir, according to the NSM rules, and returns the path of the linked file.
+* nsmClient.debugResetDataAndExit()
+  * This is solely meant for debugging and testing.
 
 ## Long Instructions
 * Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
