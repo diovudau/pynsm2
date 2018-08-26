@@ -29,6 +29,7 @@ import socket
 from os import getenv, getpid, kill
 import os
 import os.path
+import shutil
 from uuid import uuid4
 from sys import argv
 import logging
@@ -235,7 +236,7 @@ class NSMClient(object):
 
     Does not run an event loop itself and depends on the host loop.
     E.g. a Qt timer or just a simple while True: sleep(0.1) in Python."""
-    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback = None, showGUICallback = None, loggingLevel = "error"):
+    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback = None, showGUICallback = None, loggingLevel = "info"):
 
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
@@ -243,12 +244,13 @@ class NSMClient(object):
         self._cachedIsClean = True #save status checks for this.
 
         if loggingLevel == "info":
-            logging.basicConfig(level=logging.INFO)  #for testing
-            logging.info(prettyName + ":pynsm2: Starting PyNSM2 Client with logging level INFO.") #the NSM name is not ready yet so we just use the pretty name
+            logging.getLogger().setLevel(logging.INFO) #development
+            logging.info(prettyName + ":pynsm2: Starting PyNSM2 Client with logging level INFO. Switch to 'error' for a release!") #the NSM name is not ready yet so we just use the pretty name
         elif loggingLevel == "error":
-            logging.basicConfig(level=logging.ERROR) #for production
+            logging.getLogger().setLevel(logging.ERROR) #production
         else:
             raise ValueError("Unknown logging level: {}. Choose 'info' or 'error'".format(loggingLevel))
+
 
         #given parameters,
         self.prettyName = prettyName #keep this consistent! Settle for one name.
@@ -434,14 +436,37 @@ class NSMClient(object):
         kill(getpid(), SIGKILL)
         logging.error(self.ourClientNameUnderNSM + ":pynsm2: pynsm2: SIGKILL did nothing. Do it manually.")
 
+    def debugResetDataAndExit(self):
+        """This is solely meant for debugging and testing. The user way of action should be to 
+        remove the client from the session and add a new instance, which will get a different 
+        NSM-ID.
+        Afterwards we perform a clean exit.""" 
+        logging.warning(self.ourClientNameUnderNSM + ":pynsm2: debugResetDataAndExit will now delete {} and then request an exit.".format(self.ourPath))        
+        if os.path.exists(self.ourPath):
+            if os.path.isfile(self.ourPath):                
+                try:
+                    os.remove(self.ourPath)
+                except Exception as e:
+                    logging.info(e)
+            elif os.path.isdir(self.ourPath):
+                try:
+                    shutil.rmtree(self.ourPath)
+                except Exception as e:
+                    logging.info(e)                
+        else:
+            logging.info(self.ourClientNameUnderNSM + ":pynsm2: {} does not exist.".format(self.ourPath))
+        self.serverSendExitToSelf()
 
     def serverSendExitToSelf(self):
         """If you want a very strict client you can block any non-NSM quit-attempts, like ignoring a
         qt closeEvent, and instead send the NSM Server a request to close this client.
-        This method is a shortcut to do just that."""
+        This method is a shortcut to do just that.
+        
+        Using this method will not result in a NSM-"client died unexpectedly"  message that usually
+        happens a client quits on its own. This message is harmless but may confuse a user."""
 
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send SIGTERM to ourselves.")
-        if False:#  "server-control" in self.serverFeatures:
+        if "server-control" in self.serverFeatures:
             replyToSave = _OutgoingMessage("/nsm/server/stop")
             replyToSave.add_arg("{}".format(self.ourClientId))
             self.sock.sendto(replyToSave.build(), self.nsmOSCUrl)
@@ -486,6 +511,7 @@ class NSMClient(object):
         filePathInOurSession = os.path.commonprefix([filePath, self.ourPath]) == self.ourPath
         linkedPath = os.path.join(self.ourPath, os.path.basename(filePath))
         linkedPathAlreadyExists = os.path.exists(linkedPath)
+        
 
         if not os.access(os.path.dirname(linkedPath), os.W_OK): raise PermissionError("not writable", os.path.dirname(linkedPath))
 
@@ -495,8 +521,16 @@ class NSMClient(object):
             linkedPath = filePath #we could return here, but we continue to get the tests below.
             logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this is already in our session directory. We use this file directly instead. ")
 
+        elif linkedPathAlreadyExists and os.readlink(linkedPath) == filePath:
+            #the imported file already exists as link in our session dir. We do not link it again but simply report the existing link.
+            #We only check for the first target of the existing link and do not follow it through to a real file. 
+            #This way all user abstractions and file structures will be honored.
+            linkedPath = linkedPath
+            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this was already linked to our session directory before. We use the old link: {linkedPath} ")            
+
         elif linkedPathAlreadyExists:
             #A new file shall be imported but it would create a linked name which already exists in our session dir.
+            #Because we already checked for a new link to the same file above this means actually linking a different file so we need to differentiate with a unique name
             firstpart, extension = os.path.splitext(linkedPath)
             uniqueLinkedPath = firstpart + "." + uuid4().hex + extension
             assert not os.path.exists(uniqueLinkedPath)
