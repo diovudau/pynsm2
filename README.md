@@ -46,7 +46,7 @@ The nsmClient object has methods and variables such as:
 * nsmClient.importResource(filepath)
   * Use this to load external resources, for example a sample file. It links the sample file into the session dir, according to the NSM rules, and returns the path of the linked file.
 * nsmClient.debugResetDataAndExit()
-  * This is solely meant for debugging and testing.
+  * Deletes self.ourpath recursively and exists the client. This is only meant for debugging and testing.
 
 ## Long Instructions
 * Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
