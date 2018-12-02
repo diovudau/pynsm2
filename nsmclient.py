@@ -241,12 +241,12 @@ class NSMClient(object):
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
         self.realClient = True
-        self._cachedIsClean = True #save status checks for this.
+        self.cachedSaveStatus = True #save status checks for this.
 
-        if loggingLevel == "info":
+        if loggingLevel == "info" or loggingLevel == 20:
             logging.getLogger().setLevel(logging.INFO) #development
             logging.info(prettyName + ":pynsm2: Starting PyNSM2 Client with logging level INFO. Switch to 'error' for a release!") #the NSM name is not ready yet so we just use the pretty name
-        elif loggingLevel == "error":
+        elif loggingLevel == "error" or loggingLevel == 40:
             logging.getLogger().setLevel(logging.ERROR) #production
         else:
             raise ValueError("Unknown logging level: {}. Choose 'info' or 'error'".format(loggingLevel))
@@ -286,6 +286,7 @@ class NSMClient(object):
         self.ourClientNameUnderNSM = None
         self.ourClientId = None # the "file extension" of ourClientNameUnderNSM
         self.isVisible = None #set in announceGuiVisibility
+        self.saveStatus = True # true is clean. false means we need saving.
         self.announceOurselves()
         assert self.serverFeatures, self.serverFeatures
         assert self.sessionName, self.sessionName
@@ -299,7 +300,7 @@ class NSMClient(object):
         """Return and save the nsm osc url or raise an error"""
         nsmOSCUrl = getenv("NSM_URL")
         if not nsmOSCUrl:
-            raise NSMNotRunningError(self.ourClientNameUnderNSM + ":Non-Session-Manager environment variable $NSM_URL not found. Only start this program through the non-session-manager")
+            raise NSMNotRunningError("Non-Session-Manager environment variable $NSM_URL not found.")
         else:
             #osc.udp://hostname:portnumber/
             o = urlparse(nsmOSCUrl)
@@ -348,7 +349,7 @@ class NSMClient(object):
         #Wait for /reply (aka 'Howdy, what took you so long?)
         data, addr = self.sock.recvfrom(1024)
         msg = _IncomingMessage(data)
-        assert msg.oscpath == "/reply", msg.oscpath
+        assert msg.oscpath == "/reply", (msg.oscpath, msg.params)
         nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
         assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
         logging.info(self.prettyName + ":pynsm2: Got /reply 'Howdy, what took you so long' from NSM.")
@@ -376,9 +377,9 @@ class NSMClient(object):
 
     def announceSaveStatus(self, isClean):
         """Only send to the NSM Server if there was really a change"""
-        if not isClean == self._cachedIsClean:
+        if not isClean == self.cachedSaveStatus:
             message = "/nsm/client/is_clean" if isClean else "/nsm/client/is_dirty"
-            self._cachedIsClean = isClean
+            self.cachedSaveStatus = isClean
             saveStatus = _OutgoingMessage(message)
             logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling NSM that our clients save state is now: {}".format(message))
             self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
@@ -437,13 +438,13 @@ class NSMClient(object):
         logging.error(self.ourClientNameUnderNSM + ":pynsm2: pynsm2: SIGKILL did nothing. Do it manually.")
 
     def debugResetDataAndExit(self):
-        """This is solely meant for debugging and testing. The user way of action should be to 
-        remove the client from the session and add a new instance, which will get a different 
+        """This is solely meant for debugging and testing. The user way of action should be to
+        remove the client from the session and add a new instance, which will get a different
         NSM-ID.
-        Afterwards we perform a clean exit.""" 
-        logging.warning(self.ourClientNameUnderNSM + ":pynsm2: debugResetDataAndExit will now delete {} and then request an exit.".format(self.ourPath))        
+        Afterwards we perform a clean exit."""
+        logging.warning(self.ourClientNameUnderNSM + ":pynsm2: debugResetDataAndExit will now delete {} and then request an exit.".format(self.ourPath))
         if os.path.exists(self.ourPath):
-            if os.path.isfile(self.ourPath):                
+            if os.path.isfile(self.ourPath):
                 try:
                     os.remove(self.ourPath)
                 except Exception as e:
@@ -452,7 +453,7 @@ class NSMClient(object):
                 try:
                     shutil.rmtree(self.ourPath)
                 except Exception as e:
-                    logging.info(e)                
+                    logging.info(e)
         else:
             logging.info(self.ourClientNameUnderNSM + ":pynsm2: {} does not exist.".format(self.ourPath))
         self.serverSendExitToSelf()
@@ -461,7 +462,7 @@ class NSMClient(object):
         """If you want a very strict client you can block any non-NSM quit-attempts, like ignoring a
         qt closeEvent, and instead send the NSM Server a request to close this client.
         This method is a shortcut to do just that.
-        
+
         Using this method will not result in a NSM-"client died unexpectedly"  message that usually
         happens a client quits on its own. This message is harmless but may confuse a user."""
 
@@ -511,7 +512,7 @@ class NSMClient(object):
         filePathInOurSession = os.path.commonprefix([filePath, self.ourPath]) == self.ourPath
         linkedPath = os.path.join(self.ourPath, os.path.basename(filePath))
         linkedPathAlreadyExists = os.path.exists(linkedPath)
-        
+
 
         if not os.access(os.path.dirname(linkedPath), os.W_OK): raise PermissionError("not writable", os.path.dirname(linkedPath))
 
@@ -523,10 +524,10 @@ class NSMClient(object):
 
         elif linkedPathAlreadyExists and os.readlink(linkedPath) == filePath:
             #the imported file already exists as link in our session dir. We do not link it again but simply report the existing link.
-            #We only check for the first target of the existing link and do not follow it through to a real file. 
+            #We only check for the first target of the existing link and do not follow it through to a real file.
             #This way all user abstractions and file structures will be honored.
             linkedPath = linkedPath
-            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this was already linked to our session directory before. We use the old link: {linkedPath} ")            
+            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this was already linked to our session directory before. We use the old link: {linkedPath} ")
 
         elif linkedPathAlreadyExists:
             #A new file shall be imported but it would create a linked name which already exists in our session dir.
