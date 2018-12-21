@@ -468,12 +468,27 @@ class NSMClient(object):
 
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send SIGTERM to ourselves.")
         if "server-control" in self.serverFeatures:
-            replyToSave = _OutgoingMessage("/nsm/server/stop")
-            replyToSave.add_arg("{}".format(self.ourClientId))
-            self.sock.sendto(replyToSave.build(), self.nsmOSCUrl)
+            message = _OutgoingMessage("/nsm/server/stop")
+            message.add_arg("{}".format(self.ourClientId))
+            self.sock.sendto(message.build(), self.nsmOSCUrl)
         else:
             logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Quitting on our own. Server only supports: {}".format(self.serverFeatures))
             kill(getpid(), SIGTERM) #this calls the exit callback but nsm will output something like "client died unexpectedly."
+
+    def serverSendSaveToSelf(self):
+        """Some clients want to offer a manual Save function, mostly for psychological reasons.
+        We offer a clean solution in calling this function which will trigger a round trip over the
+        NSM server so our client thinks it received a Save instruction. This leads to a clean
+        state with a good saveStatus and no required extra functionality in the client."""
+        
+        logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send Save to ourselves.")
+        if "server-control" in self.serverFeatures:
+            #message = _OutgoingMessage("/nsm/server/save") # "Save All" Command.
+            message = _OutgoingMessage("/nsm/gui/client/save")            
+            message.add_arg("{}".format(self.ourClientId))  
+            self.sock.sendto(message.build(), self.nsmOSCUrl)
+        else:
+            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Server only supports: {}".format(self.serverFeatures))            
 
     def importResource(self, filePath):
         """aka. import into session
