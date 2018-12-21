@@ -477,6 +477,17 @@ class NSMClient(object):
 
     def importResource(self, filePath):
         """aka. import into session
+        
+        ATTENTION! You will still receive an absolute path from this function. You need to make
+        sure yourself that this path will not be saved in your save file, but rather use a place-
+        holder that gets replaced by the actual session path each time. A good point is after 
+        serialisation. search&replace for the session prefix ("ourPath") and replace it with a tag
+        e.g. <sessionDirectory>. The opposite during load.
+        Only such a behaviour will make your session portable.
+        
+        Do not use the following pattern: An alternative that comes to mind is to only work with 
+        relative paths and force your programs workdir to the session directory. Better work with 
+        absolute paths internally .        
 
         Symlinks given path into session dir and returns the linked path relative to the ourPath.
         It can handles single files as well as whole directories.
