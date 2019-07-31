@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 PyNSMClient 2.0 -  A Non Session Manager Client-Library in one file.
-Copyright (c) 2014-2018, Nils Hilbricht <nils@hilbricht.net> http://www.hilbricht.net, All rights reserved.
+Copyright (c) 2014-2019, Nils Hilbricht <nils@hilbricht.net> http://www.hilbricht.net, All rights reserved.
 The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
 With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
 
-API documentation: http//non.tuxfamily.org/nsm/API.html
+API documentation: http://non.tuxfamily.org/nsm/API.html
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
@@ -343,16 +343,16 @@ class NSMClient(object):
         announce.add_arg(self.executableName)  #s:executable_name
         announce.add_arg(1)  #i:api_version_major
         announce.add_arg(2)  #i:api_version_minor
-        announce.add_arg(int(getpid())) #i:pid
+        announce.add_arg(int(getpid())) #i:pid        
         self.sock.sendto(announce.build(), self.nsmOSCUrl)
-
+        
         #Wait for /reply (aka 'Howdy, what took you so long?)
-        data, addr = self.sock.recvfrom(1024)
+        data, addr = self.sock.recvfrom(1024)        
         msg = _IncomingMessage(data)
         assert msg.oscpath == "/reply", (msg.oscpath, msg.params)
         nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
         assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
-        logging.info(self.prettyName + ":pynsm2: Got /reply 'Howdy, what took you so long' from NSM.")
+        logging.info(self.prettyName + ":pynsm2: Got /reply " + welcomeMessage)
 
         #Wait for /nsm/client/open
         data, addr = self.sock.recvfrom(1024)
@@ -366,7 +366,7 @@ class NSMClient(object):
         replyToOpen = _OutgoingMessage("/reply")
         replyToOpen.add_arg("/nsm/client/open")
         replyToOpen.add_arg("{} is opened or created".format(self.prettyName))
-        self.sock.sendto(replyToOpen.build(), self.nsmOSCUrl)
+        self.sock.sendto(replyToOpen.build(), self.nsmOSCUrl)        
 
     def announceGuiVisibility(self, isVisible):
         message = "/nsm/client/gui_is_shown" if isVisible else "/nsm/client/gui_is_hidden"
@@ -525,6 +525,11 @@ class NSMClient(object):
         or of our client program. We do not provide any means to unlink or delete files from the
         session directory.
         """
+        
+        #Even if the project was not saved yet now it is time to make our directory in the NSM dir.
+        if not os.path.exists(self.ourPath):
+            os.makedirs(self.ourPath)
+        
         filePath = os.path.abspath(filePath) #includes normalisation
         if not os.path.exists(self.ourPath):raise FileNotFoundError(self.ourPath)
         if not os.path.isdir(self.ourPath): raise NotADirectoryError(self.ourPath)
@@ -534,11 +539,9 @@ class NSMClient(object):
         if os.path.isdir(filePath): raise IsADirectoryError(filePath)
         if not os.access(filePath, os.R_OK): raise PermissionError("not readable", filePath)
 
-
         filePathInOurSession = os.path.commonprefix([filePath, self.ourPath]) == self.ourPath
         linkedPath = os.path.join(self.ourPath, os.path.basename(filePath))
         linkedPathAlreadyExists = os.path.exists(linkedPath)
-
 
         if not os.access(os.path.dirname(linkedPath), os.W_OK): raise PermissionError("not writable", os.path.dirname(linkedPath))
 
