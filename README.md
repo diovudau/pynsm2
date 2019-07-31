@@ -1,11 +1,12 @@
-# pynsm2
-Non Session Manager client library in Python - Version2: No dependencies except Python3.
+# pynsm
+Non Session Manager client library in Python - No dependencies except Python3.
 
-PyNSMClient 2.1 -  A Non Session Manager Client-Library in one file.
+PyNSMClient -  A Non Session Manager Client-Library in one file.
 
-Copyright (c) 2014-2018, Nils Hilbricht <info@hilbricht.net>, All rights reserved.
+Copyright (c) 2014-2019, Nils Hilbricht <info@hilbricht.net>, All rights reserved.
 
-This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public
+This library is licensed under the MIT license. Please check the file LICENSE for more information.
+
 
 ## Short Instructions
 You can use exampleBoilerplate.py as a starting point, or copy nsmclient.py to your own program and import and initialize it as early as possible.
