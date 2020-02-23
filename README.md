@@ -3,7 +3,7 @@ Non Session Manager client library in Python - No dependencies except Python3.
 
 PyNSMClient -  A Non Session Manager Client-Library in one file.
 
-Copyright (c) 2014-2019, Nils Hilbricht <info@hilbricht.net>, All rights reserved.
+Copyright (c) 2014-2020, Nils Hilbricht <info@hilbricht.net>, All rights reserved.
 
 This library is licensed under the MIT license. Please check the file LICENSE for more information.
 

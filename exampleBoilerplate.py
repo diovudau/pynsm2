@@ -1,10 +1,16 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
+PyNSMClient 2.1 -  A Non Session Manager Client-Library in one file.
+
+The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
+With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
+
+API documentation: http://non.tuxfamily.org/nsm/API.html
+
 MIT License
 
-Copyright 2014-2019 Nils Hilbricht https://www.hilbricht.net
+Copyright 2014-2020 Nils Hilbricht https://www.laborejo.org
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
 associated documentation files (the "Software"), to deal in the Software without restriction, 
