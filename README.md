@@ -44,10 +44,16 @@ The nsmClient object has methods and variables such as:
 * nsmClient.sessionName
 * nsmClient.announceGuiVisibility(bool)
   * Announce if your GUI is visible (True) or not (False). Only works if you initialized NSMClient with both hideGUICallback and showGUICallback. Don't forget to send it once for your state after starting your program.
+* nsmcClient.changeLabel(prettyName)
+  * Tell the GUI to append (prettyName) to our name. This is not saved by NSM but you need to send it yourself each startup.
+* nsmClient.serverSendSaveToSelf()
+  * A clean solution to use the nsm save callbacks from within your program (Ctrl+S or File->Save). No need for redundant save mechanism.
+* nsmClient.serverSendExitToSelf()
+  * A clean quit, without "client died unexpectedly". Use sys.exit() to exit your program in your nms-quit callback.
 * nsmClient.importResource(filepath)
   * Use this to load external resources, for example a sample file. It links the sample file into the session dir, according to the NSM rules, and returns the path of the linked file.
 * nsmClient.debugResetDataAndExit()
-  * Deletes self.ourpath recursively and exists the client. This is only meant for debugging and testing.
+  * Deletes self.ourpath, which is the session save file or directory, recursively and exists the client. This is only meant for debugging and testing.
 
 ## Long Instructions
 * Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
