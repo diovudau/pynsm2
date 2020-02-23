@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PyNSMClient 2.0 -  A Non Session Manager Client-Library in one file.
+PyNSMClient 2.1 -  A Non Session Manager Client-Library in one file.
 
 The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
 With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
@@ -10,7 +10,7 @@ API documentation: http://non.tuxfamily.org/nsm/API.html
 
 MIT License
 
-Copyright 2014-2019 Nils Hilbricht https://www.hilbricht.net
+Copyright 2014-2020 Nils Hilbricht https://www.laborejo.org
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
 associated documentation files (the "Software"), to deal in the Software without restriction, 
@@ -27,6 +27,7 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT 
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+
 
 import struct
 import socket
@@ -348,29 +349,40 @@ class NSMClient(object):
         announce.add_arg(1)  #i:api_version_major
         announce.add_arg(2)  #i:api_version_minor
         announce.add_arg(int(getpid())) #i:pid        
+        hostname, port = self.nsmOSCUrl
+        assert hostname, self.nsmOSCUrl
+        assert port, self.nsmOSCUrl
         self.sock.sendto(announce.build(), self.nsmOSCUrl)
         
         #Wait for /reply (aka 'Howdy, what took you so long?)
         data, addr = self.sock.recvfrom(1024)        
         msg = _IncomingMessage(data)
-        assert msg.oscpath == "/reply", (msg.oscpath, msg.params)
-        nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
-        assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
-        logging.info(self.prettyName + ":pynsm2: Got /reply " + welcomeMessage)
 
-        #Wait for /nsm/client/open
-        data, addr = self.sock.recvfrom(1024)
-        msg = _IncomingMessage(data)
-        assert msg.oscpath == "/nsm/client/open", msg.oscpath
-        self.ourPath, self.sessionName, self.ourClientNameUnderNSM = msg.params
-        self.ourClientId = os.path.splitext(self.ourClientNameUnderNSM)[1][1:]
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
-        self.openOrNewCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM) #Host function to either load an existing session or create a new one.
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Our client should be done loading or creating the file {}".format(self.ourPath))
-        replyToOpen = _OutgoingMessage("/reply")
-        replyToOpen.add_arg("/nsm/client/open")
-        replyToOpen.add_arg("{} is opened or created".format(self.prettyName))
-        self.sock.sendto(replyToOpen.build(), self.nsmOSCUrl)        
+        if msg.oscpath == "/error":
+            originalMessage, errorCode, reason = msg.params                        
+            logging.error("Code {}: {}".format(errorCode, reason))
+            quit()
+
+        elif msg.oscpath == "/reply":            
+            nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
+            assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
+            logging.info(self.prettyName + ":pynsm2: Got /reply " + welcomeMessage)
+
+            #Wait for /nsm/client/open
+            data, addr = self.sock.recvfrom(1024)
+            msg = _IncomingMessage(data)
+            assert msg.oscpath == "/nsm/client/open", msg.oscpath
+            self.ourPath, self.sessionName, self.ourClientNameUnderNSM = msg.params
+            self.ourClientId = os.path.splitext(self.ourClientNameUnderNSM)[1][1:]
+            logging.info(self.ourClientNameUnderNSM + ":pynsm2: Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
+            self.openOrNewCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM) #Host function to either load an existing session or create a new one.
+            logging.info(self.ourClientNameUnderNSM + ":pynsm2: Our client should be done loading or creating the file {}".format(self.ourPath))
+            replyToOpen = _OutgoingMessage("/reply")
+            replyToOpen.add_arg("/nsm/client/open")
+            replyToOpen.add_arg("{} is opened or created".format(self.prettyName))
+            self.sock.sendto(replyToOpen.build(), self.nsmOSCUrl)
+        else:
+            raise ValueError("Unexpected message path after announce".format((msg.oscpath, msg.params)))            
 
     def announceGuiVisibility(self, isVisible):
         message = "/nsm/client/gui_is_shown" if isVisible else "/nsm/client/gui_is_hidden"
@@ -388,8 +400,7 @@ class NSMClient(object):
             logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling NSM that our clients save state is now: {}".format(message))
             self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
 
-    def _saveCallback(self):
-        assert not self.isVisible is None
+    def _saveCallback(self):        
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling our client to save as {}".format(self.ourPath))
         self.saveCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM)
         replyToSave = _OutgoingMessage("/reply")
@@ -493,6 +504,18 @@ class NSMClient(object):
             self.sock.sendto(message.build(), self.nsmOSCUrl)
         else:
             logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Server only supports: {}".format(self.serverFeatures))            
+
+    def changeLabel(self, label:str):
+        """This function is implemented because it is provided by NSM. However, it does not much.
+        The message gets received but is not saved.
+        The official NSM GUI uses it but then does not save it.
+        We would have to send it every startup ourselves.
+
+        This is fine for us as clients, but you need to provide a GUI field to enter that label."""
+        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling the NSM-Server that our label is now " + label)
+        message = _OutgoingMessage("/nsm/client/label")                
+        message.add_arg(label)  #s:label        
+        self.sock.sendto(message.build(), self.nsmOSCUrl)            
 
     def importResource(self, filePath):
         """aka. import into session
