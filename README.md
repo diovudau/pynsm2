@@ -3,7 +3,7 @@ Non Session Manager client library in Python - No dependencies except Python3.
 
 PyNSMClient -  A Non Session Manager Client-Library in one file.
 
-Copyright (c) 2014-2020, Nils Hilbricht <info@hilbricht.net>, All rights reserved.
+Copyright (c) 2014-2020, Laborejo Software Suite <info@laborejo.org>, All rights reserved.
 
 This library is licensed under the MIT license. Please check the file LICENSE for more information.
 
@@ -36,7 +36,6 @@ Don't forget to add nsmClient.reactToMessage to your event loop.
 * broadcastCallback receives five parameters. The three standard: ourPath, sessionName, ourClientNameUnderNSM. And additionally messagePath and listOfArguments. MessagePath is entirely program specific, the number and type of arguments depend on the sender.
 * Additional callbacks are: hideGUICallback and showGUICallback. These receive no parameters and need to answer with the function: nsmClient.announceGuiVisibility(bool). That means you can decline show or hide, dependending on the state of your program.
 
-
 The nsmClient object has methods and variables such as:
 
 * nsmClient.ourClientNameUnderNSM
@@ -55,10 +54,11 @@ The nsmClient object has methods and variables such as:
 * nsmClient.importResource(filepath)
   * Use this to load external resources, for example a sample file. It links the sample file into the session dir, according to the NSM rules, and returns the path of the linked file.
 * nsmClient.debugResetDataAndExit()
-  * Deletes self.ourpath, which is the session save file or directory, recursively and exists the client. This is only meant for debugging and testing.
+  * Deletes self.ourpath, which is the session save file or directory, recursively and exits the client. This is only meant for debugging and testing.
 
 ## Long Instructions
 * Read and start example.py, then read and understand nsmclient.py. It requires PyQt5 to execute and a brain to read.
+* There are several very minimal and basic clients in the directory `minimalClients/`
 * For your own program read and learn the NSM API: http://non.tuxfamily.org/nsm/API.html
 * The hard part about session management is not to use this lib or write your own but to make your program comply to the strict rules of session management.
 
