@@ -50,7 +50,10 @@ class BaseClient(object):
         print (__file__, "quit")
         sys.exit()
 
-    def event(self):
+    def broadcastCallbackFunction(self, *args):
+        print (__file__, "broadcast")        
+
+    def event(self, nsmClient):
         pass
 
     def __init__(self, delayedFunctions=[], eventFunction=None):
@@ -67,6 +70,7 @@ class BaseClient(object):
             openOrNewCallback = self.openOrNewCallbackFunction,
             supportsSaveStatus = False,         # Change this to True if your program announces it's save status to NSM
             exitProgramCallback = self.exitCallbackFunction,
+            broadcastCallback = self.broadcastCallbackFunction,
             hideGUICallback = None, #replace with your hiding function. You need to answer in your function with nsmClient.announceGuiVisibility(False)
             showGUICallback = None,  #replace with your showing function. You need to answer in your function with nsmClient.announceGuiVisibility(True)
             loggingLevel = "info", #"info" for development or debugging, "error" for production. default is error.
@@ -83,7 +87,7 @@ class BaseClient(object):
 
         while True:
             self.nsmClient.reactToMessage()
-            self.event()
+            self.event(self.nsmClient)
             sleep(0.05)
 
 if __name__ == '__main__':    

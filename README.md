@@ -20,18 +20,20 @@ Then add nsmClient.reactToMessage to your event loop.
         exitProgramCallback = exitCallbackFunction,
         hideGUICallback = None, #replace with your hiding function. You need to answer in your function with nsmClient.announceGuiVisibility(False)
         showGUICallback = None,  #replace with your showing function. You need to answer in your function with nsmClient.announceGuiVisibility(True)
+        broadcastCallback = None,  #give a function that reacts to any broadcast by any other client. 
         loggingLevel = "info", #"info" for development or debugging, "error" for production. default is error.
         )
 
 
 Don't forget to add nsmClient.reactToMessage to your event loop.
 
-* Each of the callbacks (save, open/new and exit) receive three parameters: ourPath, sessionName, ourClientNameUnderNSM.
+* Each of the callbacks "save", "open/new" and "exit" receive three parameters: ourPath, sessionName, ourClientNameUnderNSM.
 * openOrNew gets called first. Init your jack client there with ourClientNameUnderNSM as name.
 * exitProgramCallback is the place to gracefully exit your program, including jack-client closing.
 * saveCallback gets called all the time. Use ourPath either as filename or as directory.
     * If you choose filename add an extension.
     * If you choose directory make sure that the filenames inside are static, no matter what project/session. The user must have no influence over file naming
+* broadcastCallback receives five parameters. The three standard: ourPath, sessionName, ourClientNameUnderNSM. And additionally messagePath and listOfArguments. MessagePath is entirely program specific, the number and type of arguments depend on the sender.
 * Additional callbacks are: hideGUICallback and showGUICallback. These receive no parameters and need to answer with the function: nsmClient.announceGuiVisibility(bool). That means you can decline show or hide, dependending on the state of your program.
 
 

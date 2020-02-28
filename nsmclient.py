@@ -49,6 +49,14 @@ class _IncomingMessage(object):
     """
 
     def __init__(self, dgram):
+        #NSM Broadcasts are bundles, but very simple ones. We only need to care about the single message it contains.
+        #Therefore we can strip the bundle prefix and handle it as normal message.        
+        if b"#bundle" in dgram:            
+            bundlePrefix, singleMessage = dgram.split(b"/", maxsplit=1)            
+            dgram = b"/" + singleMessage  # / eaten by split
+            self.isBroadcast = True
+        else:
+            self.isBroadcast = False
         self.LENGTH = 4 #32 bit
         self._dgram = dgram
         self._parameters = []
@@ -79,6 +87,10 @@ class _IncomingMessage(object):
     def get_string(self, dgram, start_index):
         """Get a python string from the datagram, starting at pos start_index.
 
+        We receive always the full string, but handle only the part from the start_index internally.
+        In the end return the offset so it can be added to the index for the next parameter.
+        Each subsequent call handles less of the same string, starting further to the right.
+
         According to the specifications, a string is:
         "A sequence of non-null ASCII characters followed by a null,
         followed by 0-3 additional null characters to make the total number
@@ -94,8 +106,14 @@ class _IncomingMessage(object):
         Raises:
         ValueError if the datagram could not be parsed.
         """
-        offset = 0
-        try:
+        #First test for empty string, which is nothing, followed by a terminating \x00 padded by three additional \x00.
+        if dgram[start_index:].startswith(b"\x00\x00\x00\x00"):            
+            return "", start_index + 4
+            
+        #Otherwise we have a non-empty string that must follow the rules of the docstring.
+        
+        offset = 0        
+        try:            
             while dgram[start_index + offset] != 0:
                 offset += 1
             if offset == 0:
@@ -109,7 +127,7 @@ class _IncomingMessage(object):
                 # do it ourselves.
             if offset > len(dgram[start_index:]):
                 raise ValueError('Datagram is too short')
-            data_str = dgram[start_index:start_index + offset]
+            data_str = dgram[start_index:start_index + offset]            
             return data_str.replace(b'\x00', b'').decode('utf-8'), start_index + offset
         except IndexError as ie:
             raise ValueError('Could not parse datagram %s' % ie)
@@ -136,7 +154,7 @@ class _IncomingMessage(object):
 
     def parse_datagram(self):
         try:
-            self._address_regexp, index = self.get_string(self._dgram, 0)
+            self._address_regexp, index = self.get_string(self._dgram, 0)            
             if not self._dgram[index:]:
                 # No params is legit, just return now.
                 return
@@ -241,7 +259,7 @@ class NSMClient(object):
 
     Does not run an event loop itself and depends on the host loop.
     E.g. a Qt timer or just a simple while True: sleep(0.1) in Python."""
-    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback = None, showGUICallback = None, loggingLevel = "info"):
+    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback=None, showGUICallback=None, broadcastCallback=None, loggingLevel = "info"):
 
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
@@ -263,13 +281,16 @@ class NSMClient(object):
         self.saveCallback = saveCallback
         self.exitProgramCallback = exitProgramCallback
         self.openOrNewCallback = openOrNewCallback #The host needs to: Create a jack client with ourClientNameUnderNSM - Open the saved file and all its resources
+        self.broadcastCallback = broadcastCallback if broadcastCallback else None 
         self.hideGUICallback = hideGUICallback if hideGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
         self.showGUICallback = showGUICallback if showGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
 
-
-        self.reactions = {"/nsm/client/save" : self._saveCallback,
+        self.reactions = {
+                          "/nsm/client/save" : self._saveCallback,
                           "/nsm/client/show_optional_gui" : self.showGUICallback,
-                          "/nsm/client/hide_optional_gui" : self.hideGUICallback,}
+                          "/nsm/client/hide_optional_gui" : self.hideGUICallback,
+                          #broadcast is handled directly by the function because it has more parameters                          
+                          }
         self.discardReactions = set(["/nsm/client/session_is_loaded"])
 
 
@@ -416,7 +437,7 @@ class NSMClient(object):
         except BlockingIOError: #happens while no data is received. Has nothing to do with blocking or not.
             return None
 
-        msg = _IncomingMessage(data) #However, messages will crash the program if they are bigger than 4096.
+        msg = _IncomingMessage(data) #However, messages will crash the program if they are bigger than 4096.        
         if msg.oscpath in self.reactions:
             self.reactions[msg.oscpath]()
         elif msg.oscpath in self.discardReactions:
@@ -425,9 +446,15 @@ class NSMClient(object):
             logging.info (self.ourClientNameUnderNSM + ":pynsm2: Got /reply Loaded from NSM Server")
         elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/save", "Saved."]: #NSM sends that all program-states are saved. Does only happen from the general save instruction, not when saving our client individually
             logging.info (self.ourClientNameUnderNSM + ":pynsm2: Got /reply Saved from NSM Server")
+        elif msg.isBroadcast:
+            if self.broadcastCallback:
+                logging.info (self.ourClientNameUnderNSM + f":pynsm2: Got broadcast with messagePath {msg.oscpath} and listOfArguments {msg.params}")            
+                self.broadcastCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM, msg.oscpath, msg.params)
+            else:
+                logging.info (self.ourClientNameUnderNSM + f":pynsm2: No callback for broadcast! Got messagePath {msg.oscpath} and listOfArguments {msg.params}")            
         elif msg.oscpath == "/error":
             logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Got /error from NSM Server. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
-        else:
+        else:            
             logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Reaction not implemented:. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
 
     def sigtermHandler(self, signal, frame):
@@ -515,6 +542,17 @@ class NSMClient(object):
         logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling the NSM-Server that our label is now " + label)
         message = _OutgoingMessage("/nsm/client/label")                
         message.add_arg(label)  #s:label        
+        self.sock.sendto(message.build(), self.nsmOSCUrl)            
+
+    def broadcast(self, path:str, arguments:list):
+        """/nsm/server/broadcast s:path [arguments...]
+        We, as sender, will not receive the broadcast back.
+        """
+        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Sending broadcast " + path + repr(arguments))
+        message = _OutgoingMessage("/nsm/server/broadcast")                
+        message.add_arg(path)
+        for arg in arguments:
+            message.add_arg(arg)  #type autodetect
         self.sock.sendto(message.build(), self.nsmOSCUrl)            
 
     def importResource(self, filePath):

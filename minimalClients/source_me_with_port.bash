@@ -5,5 +5,5 @@ if [[ -z "$1" ]]; then
     exit 1
 fi
 
-export NSM_URL=osc.udp://fyps.localdomain:$1/
+export NSM_URL=osc.udp://0.0.0.0:$1/
 export PATH=$(pwd):$PATH
