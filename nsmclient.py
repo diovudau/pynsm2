@@ -28,6 +28,8 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+import logging;
+logger = None #filled by init with prettyName 
 
 import struct
 import socket
@@ -37,7 +39,6 @@ import os.path
 import shutil
 from uuid import uuid4
 from sys import argv
-import logging
 from signal import signal, SIGTERM, SIGINT, SIGKILL #react to exit signals to close the client gracefully. Or kill if the client fails to do so.
 from urllib.parse import urlparse
 
@@ -173,13 +174,13 @@ class _IncomingMessage(object):
                 elif param == "s":  # String.
                     val, index = self.get_string(self._dgram, index)
                 else:
-                    logging.warning("pynsm2: Unhandled parameter type: {0}".format(param))
+                    logger.warning("Unhandled parameter type: {0}".format(param))
                     continue
                 self._parameters.append(val)
         except ValueError as pe:
             #raise ValueError('Found incorrect datagram, ignoring it', pe)
             # Raising an error is not ignoring it!
-            logging.warning("pynsm2: Found incorrect datagram, ignoring it. {}".format(pe))
+            logger.warning("Found incorrect datagram, ignoring it. {}".format(pe))
 
     @property
     def oscpath(self):
@@ -264,13 +265,16 @@ class NSMClient(object):
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
         self.realClient = True
-        self.cachedSaveStatus = True #save status checks for this.
+        self.cachedSaveStatus = None #save status checks for this.
 
+        global logger
+        logger = logging.getLogger(prettyName)
+        logger.info("import")
         if loggingLevel == "info" or loggingLevel == 20:
-            logging.getLogger().setLevel(logging.INFO) #development
-            logging.info(prettyName + ":pynsm2: Starting PyNSM2 Client with logging level INFO. Switch to 'error' for a release!") #the NSM name is not ready yet so we just use the pretty name
+            logging.basicConfig(level=logging.INFO) #development
+            logger.info("Starting PyNSM2 Client with logging level INFO. Switch to 'error' for a release!") #the NSM name is not ready yet so we just use the pretty name
         elif loggingLevel == "error" or loggingLevel == 40:
-            logging.getLogger().setLevel(logging.ERROR) #production
+            logging.basicConfig(level=logging.ERROR) #production
         else:
             raise ValueError("Unknown logging level: {}. Choose 'info' or 'error'".format(loggingLevel))
 
@@ -285,10 +289,13 @@ class NSMClient(object):
         self.hideGUICallback = hideGUICallback if hideGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
         self.showGUICallback = showGUICallback if showGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
 
+        #Reactions get the raw _IncomingMessage OSC object
+        #A client can add to reactions.
         self.reactions = {
                           "/nsm/client/save" : self._saveCallback,
-                          "/nsm/client/show_optional_gui" : self.showGUICallback,
-                          "/nsm/client/hide_optional_gui" : self.hideGUICallback,
+                          "/nsm/client/show_optional_gui" : lambda msg: self.showGUICallback(),
+                          "/nsm/client/hide_optional_gui" : lambda msg: self.hideGUICallback(),
+                          #Hello source-code reader. You can add your own reactions here by nsmClient.reactions[oscpath]=func, where func gets the raw _IncomingMessage OSC object as argument.
                           #broadcast is handled directly by the function because it has more parameters                          
                           }
         self.discardReactions = set(["/nsm/client/session_is_loaded"])
@@ -304,6 +311,11 @@ class NSMClient(object):
         #UNIX Signals. Used for quit.
         signal(SIGTERM, self.sigtermHandler) #NSM sends only SIGTERM. #TODO: really? pynsm version 1 handled sigkill as well.
         signal(SIGINT, self.sigtermHandler)
+        ip, port = self.sock.getsockname()               
+        self.ourOscUrl = f"osc.udp://{ip}:{port}/"
+        print (self.ourOscUrl)
+        
+        
 
         #The following instance parameters are all set in announceOurselves
         self.serverFeatures = None
@@ -321,6 +333,16 @@ class NSMClient(object):
 
         self.sock.setblocking(False) #We have waited for tha handshake. Now switch blocking off because we expect sock.recvfrom to be empty in 99.99...% of the time so we shouldn't wait for the answer.
         #After this point the host must include self.reactToMessage in its event loop
+
+    def send(self, path:str, listOfParameters:list, url=None):
+        """Send any osc message. Defaults to nsmd URL.
+        Will not wait for an answer but return None."""
+        if not url:
+            url = self.nsmOSCUrl 
+        msg = _OutgoingMessage(path)
+        for arg in listOfParameters:
+            msg.add_arg(arg) #type is auto-determined by outgoing message
+        self.sock.sendto(msg.build(), url)                
 
     def getNsmOSCUrl(self):
         """Return and save the nsm osc url or raise an error"""
@@ -381,13 +403,13 @@ class NSMClient(object):
 
         if msg.oscpath == "/error":
             originalMessage, errorCode, reason = msg.params                        
-            logging.error("Code {}: {}".format(errorCode, reason))
+            logger.error("Code {}: {}".format(errorCode, reason))
             quit()
 
         elif msg.oscpath == "/reply":            
             nsmAnnouncePath, welcomeMessage, managerName, self.serverFeatures = msg.params
             assert nsmAnnouncePath == "/nsm/server/announce", nsmAnnouncePath
-            logging.info(self.prettyName + ":pynsm2: Got /reply " + welcomeMessage)
+            logger.info("Got /reply " + welcomeMessage)
 
             #Wait for /nsm/client/open
             data, addr = self.sock.recvfrom(1024)
@@ -395,9 +417,9 @@ class NSMClient(object):
             assert msg.oscpath == "/nsm/client/open", msg.oscpath
             self.ourPath, self.sessionName, self.ourClientNameUnderNSM = msg.params
             self.ourClientId = os.path.splitext(self.ourClientNameUnderNSM)[1][1:]
-            logging.info(self.ourClientNameUnderNSM + ":pynsm2: Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
+            logger.info("Got '/nsm/client/open' from NSM. Telling our client to load or create a file with name {}".format(self.ourPath))
             self.openOrNewCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM) #Host function to either load an existing session or create a new one.
-            logging.info(self.ourClientNameUnderNSM + ":pynsm2: Our client should be done loading or creating the file {}".format(self.ourPath))
+            logger.info("Our client should be done loading or creating the file {}".format(self.ourPath))
             replyToOpen = _OutgoingMessage("/reply")
             replyToOpen.add_arg("/nsm/client/open")
             replyToOpen.add_arg("{} is opened or created".format(self.prettyName))
@@ -409,7 +431,7 @@ class NSMClient(object):
         message = "/nsm/client/gui_is_shown" if isVisible else "/nsm/client/gui_is_hidden"
         self.isVisible = isVisible
         guiVisibility = _OutgoingMessage(message)
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling NSM that our clients switched GUI visibility to: {}".format(message))
+        logger.info("Telling NSM that our clients switched GUI visibility to: {}".format(message))
         self.sock.sendto(guiVisibility.build(), self.nsmOSCUrl)
 
     def announceSaveStatus(self, isClean):
@@ -418,11 +440,11 @@ class NSMClient(object):
             message = "/nsm/client/is_clean" if isClean else "/nsm/client/is_dirty"
             self.cachedSaveStatus = isClean
             saveStatus = _OutgoingMessage(message)
-            logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling NSM that our clients save state is now: {}".format(message))
+            logger.info("Telling NSM that our clients save state is now: {}".format(message))
             self.sock.sendto(saveStatus.build(), self.nsmOSCUrl)
 
-    def _saveCallback(self):        
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling our client to save as {}".format(self.ourPath))
+    def _saveCallback(self, msg):        
+        logger.info("Telling our client to save as {}".format(self.ourPath))
         self.saveCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM)
         replyToSave = _OutgoingMessage("/reply")
         replyToSave.add_arg("/nsm/client/save")
@@ -439,23 +461,23 @@ class NSMClient(object):
 
         msg = _IncomingMessage(data) #However, messages will crash the program if they are bigger than 4096.        
         if msg.oscpath in self.reactions:
-            self.reactions[msg.oscpath]()
+            self.reactions[msg.oscpath](msg)        
         elif msg.oscpath in self.discardReactions:
             pass
         elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/open", "Loaded."]: #NSM sends that all programs of the session were loaded.
-            logging.info (self.ourClientNameUnderNSM + ":pynsm2: Got /reply Loaded from NSM Server")
+            logger.info ("Got /reply Loaded from NSM Server")
         elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/save", "Saved."]: #NSM sends that all program-states are saved. Does only happen from the general save instruction, not when saving our client individually
-            logging.info (self.ourClientNameUnderNSM + ":pynsm2: Got /reply Saved from NSM Server")
+            logger.info ("Got /reply Saved from NSM Server")
         elif msg.isBroadcast:
             if self.broadcastCallback:
-                logging.info (self.ourClientNameUnderNSM + f":pynsm2: Got broadcast with messagePath {msg.oscpath} and listOfArguments {msg.params}")            
+                logger.info (f"Got broadcast with messagePath {msg.oscpath} and listOfArguments {msg.params}")            
                 self.broadcastCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM, msg.oscpath, msg.params)
             else:
-                logging.info (self.ourClientNameUnderNSM + f":pynsm2: No callback for broadcast! Got messagePath {msg.oscpath} and listOfArguments {msg.params}")            
+                logger.info (f"No callback for broadcast! Got messagePath {msg.oscpath} and listOfArguments {msg.params}")            
         elif msg.oscpath == "/error":
-            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Got /error from NSM Server. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
+            logger.warning("Got /error from NSM Server. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
         else:            
-            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Reaction not implemented:. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
+            logger.warning("Reaction not implemented:. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
 
     def sigtermHandler(self, signal, frame):
         """Wait for the user to quit the program
@@ -471,33 +493,33 @@ class NSMClient(object):
             gdb --args python foo.py
         the Python signal handler will not work. This has nothing to do with this library.
         """
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling our client to quit.")
+        logger.info("Telling our client to quit.")
         self.exitProgramCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM)
         #There is a chance that exitProgramCallback will hang and the program won't quit. However, this is broken design and bad programming. We COULD place a timeout here and just kill after 10s or so, but that would make quitting our responsibility and fixing a broken thing.
         #If we reach this point we have reached the point of no return. Say goodbye.
-        logging.warning(self.ourClientNameUnderNSM + ":pynsm2: Client did not quit on its own. Sending SIGKILL.")
+        logger.warning("Client did not quit on its own. Sending SIGKILL.")
         kill(getpid(), SIGKILL)
-        logging.error(self.ourClientNameUnderNSM + ":pynsm2: pynsm2: SIGKILL did nothing. Do it manually.")
+        logger.error("SIGKILL did nothing. Do it manually.")
 
     def debugResetDataAndExit(self):
         """This is solely meant for debugging and testing. The user way of action should be to
         remove the client from the session and add a new instance, which will get a different
         NSM-ID.
         Afterwards we perform a clean exit."""
-        logging.warning(self.ourClientNameUnderNSM + ":pynsm2: debugResetDataAndExit will now delete {} and then request an exit.".format(self.ourPath))
+        logger.warning("debugResetDataAndExit will now delete {} and then request an exit.".format(self.ourPath))
         if os.path.exists(self.ourPath):
             if os.path.isfile(self.ourPath):
                 try:
                     os.remove(self.ourPath)
                 except Exception as e:
-                    logging.info(e)
+                    logger.info(e)
             elif os.path.isdir(self.ourPath):
                 try:
                     shutil.rmtree(self.ourPath)
                 except Exception as e:
-                    logging.info(e)
+                    logger.info(e)
         else:
-            logging.info(self.ourClientNameUnderNSM + ":pynsm2: {} does not exist.".format(self.ourPath))
+            logger.info("{} does not exist.".format(self.ourPath))
         self.serverSendExitToSelf()
 
     def serverSendExitToSelf(self):
@@ -508,13 +530,13 @@ class NSMClient(object):
         Using this method will not result in a NSM-"client died unexpectedly"  message that usually
         happens a client quits on its own. This message is harmless but may confuse a user."""
 
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send SIGTERM to ourselves.")
+        logger.info("instructing the NSM-Server to send SIGTERM to ourselves.")
         if "server-control" in self.serverFeatures:
             message = _OutgoingMessage("/nsm/server/stop")
             message.add_arg("{}".format(self.ourClientId))
             self.sock.sendto(message.build(), self.nsmOSCUrl)
         else:
-            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Quitting on our own. Server only supports: {}".format(self.serverFeatures))
+            logger.warning("...but the NSM-Server does not support server control. Quitting on our own. Server only supports: {}".format(self.serverFeatures))
             kill(getpid(), SIGTERM) #this calls the exit callback but nsm will output something like "client died unexpectedly."
 
     def serverSendSaveToSelf(self):
@@ -523,14 +545,14 @@ class NSMClient(object):
         NSM server so our client thinks it received a Save instruction. This leads to a clean
         state with a good saveStatus and no required extra functionality in the client."""
         
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: instructing the NSM-Server to send Save to ourselves.")
+        logger.info("instructing the NSM-Server to send Save to ourselves.")
         if "server-control" in self.serverFeatures:
             #message = _OutgoingMessage("/nsm/server/save") # "Save All" Command.
             message = _OutgoingMessage("/nsm/gui/client/save")            
             message.add_arg("{}".format(self.ourClientId))  
             self.sock.sendto(message.build(), self.nsmOSCUrl)
         else:
-            logging.warning(self.ourClientNameUnderNSM + ":pynsm2: ...but the NSM-Server does not support server control. Server only supports: {}".format(self.serverFeatures))            
+            logger.warning("...but the NSM-Server does not support server control. Server only supports: {}".format(self.serverFeatures))            
 
     def changeLabel(self, label:str):
         """This function is implemented because it is provided by NSM. However, it does not much.
@@ -539,7 +561,7 @@ class NSMClient(object):
         We would have to send it every startup ourselves.
 
         This is fine for us as clients, but you need to provide a GUI field to enter that label."""
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Telling the NSM-Server that our label is now " + label)
+        logger.info("Telling the NSM-Server that our label is now " + label)
         message = _OutgoingMessage("/nsm/client/label")                
         message.add_arg(label)  #s:label        
         self.sock.sendto(message.build(), self.nsmOSCUrl)            
@@ -547,13 +569,18 @@ class NSMClient(object):
     def broadcast(self, path:str, arguments:list):
         """/nsm/server/broadcast s:path [arguments...]
         We, as sender, will not receive the broadcast back.
+
+        Broadcasts starting with /nsm are not allowed and will get discarded by the server
         """
-        logging.info(self.ourClientNameUnderNSM + ":pynsm2: Sending broadcast " + path + repr(arguments))
-        message = _OutgoingMessage("/nsm/server/broadcast")                
-        message.add_arg(path)
-        for arg in arguments:
-            message.add_arg(arg)  #type autodetect
-        self.sock.sendto(message.build(), self.nsmOSCUrl)            
+        if path.startswith("/nsm"):
+            logger.warning("Attempted broadbast starting with /nsm. Not allwoed")
+        else:        
+            logger.info("Sending broadcast " + path + repr(arguments))
+            message = _OutgoingMessage("/nsm/server/broadcast")                
+            message.add_arg(path)
+            for arg in arguments:
+                message.add_arg(arg)  #type autodetect
+            self.sock.sendto(message.build(), self.nsmOSCUrl)            
 
     def importResource(self, filePath):
         """aka. import into session
@@ -614,14 +641,14 @@ class NSMClient(object):
         if filePathInOurSession:
             #loadResource from our session dir. Portable session, manually copied beforehand or just loading a link again.
             linkedPath = filePath #we could return here, but we continue to get the tests below.
-            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this is already in our session directory. We use this file directly instead. ")
+            logger.info(f"tried to import external resource {filePath} but this is already in our session directory. We use this file directly instead. ")
 
         elif linkedPathAlreadyExists and os.readlink(linkedPath) == filePath:
             #the imported file already exists as link in our session dir. We do not link it again but simply report the existing link.
             #We only check for the first target of the existing link and do not follow it through to a real file.
             #This way all user abstractions and file structures will be honored.
             linkedPath = linkedPath
-            logging.info(self.ourClientNameUnderNSM + f":pynsm2: tried to import external resource {filePath} but this was already linked to our session directory before. We use the old link: {linkedPath} ")
+            logger.info(f"tried to import external resource {filePath} but this was already linked to our session directory before. We use the old link: {linkedPath} ")
 
         elif linkedPathAlreadyExists:
             #A new file shall be imported but it would create a linked name which already exists in our session dir.
@@ -630,13 +657,13 @@ class NSMClient(object):
             uniqueLinkedPath = firstpart + "." + uuid4().hex + extension
             assert not os.path.exists(uniqueLinkedPath)
             os.symlink(filePath, uniqueLinkedPath)
-            logging.info(self.ourClientNameUnderNSM + f":pysm2: tried to import external resource {filePath} but potential target link {linkedPath} already exists. Linked to {uniqueLinkedPath} instead.")
+            logger.info(self.ourClientNameUnderNSM + f":pysm2: tried to import external resource {filePath} but potential target link {linkedPath} already exists. Linked to {uniqueLinkedPath} instead.")
             linkedPath = uniqueLinkedPath
 
         else: #this is the "normal" case. External resources will be linked.
             assert not os.path.exists(linkedPath)
             os.symlink(filePath, linkedPath)
-            logging.info(self.ourClientNameUnderNSM + f":pynsm2: imported external resource {filePath} as link {linkedPath}")
+            logger.info(f"imported external resource {filePath} as link {linkedPath}")
 
         assert os.path.exists(linkedPath), linkedPath
         return linkedPath
