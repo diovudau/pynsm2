@@ -35,4 +35,4 @@ if __name__ == '__main__':
         (1, 'self.nsmClient.changeLabel("Pretty Name")'),
         #(4, lambda: print ("four")),
     ]    
-    base.BaseClient(funcs) #this never returns an object.
+    base.BaseClient(name="testclient_label", delayedFunctions=funcs) #this never returns an object.

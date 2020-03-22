@@ -55,7 +55,7 @@ class BaseClient(object):
     def event(self, nsmClient):
         pass
 
-    def __init__(self, delayedFunctions=[], eventFunction=None):
+    def __init__(self, name, delayedFunctions=[], eventFunction=None):
         """delayedFunctions are a (timer delay in seconds, function call) list of tuples. They will
         be executed once.
         If the function is a string instead it will be evaluated in the BaseClient context,
@@ -64,7 +64,7 @@ class BaseClient(object):
 
         Give eventFunction for repeated execution."""
 
-        self.nsmClient = NSMClient(prettyName = "testclient_base", #will raise an error and exit if this example is not run from NSM.
+        self.nsmClient = NSMClient(prettyName = name, #will raise an error and exit if this example is not run from NSM.
             saveCallback = self.saveCallbackFunction,
             openOrNewCallback = self.openOrNewCallbackFunction,
             supportsSaveStatus = False,         # Change this to True if your program announces it's save status to NSM
@@ -91,5 +91,5 @@ class BaseClient(object):
 
 if __name__ == '__main__':
     """This is the most minimal nsm client in existence"""
-    BaseClient() #this never returns an object.
+    BaseClient(name="testclient_base") #this never returns an object.
 
