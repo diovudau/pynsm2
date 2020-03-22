@@ -313,9 +313,6 @@ class NSMClient(object):
         signal(SIGINT, self.sigtermHandler)
         ip, port = self.sock.getsockname()               
         self.ourOscUrl = f"osc.udp://{ip}:{port}/"
-        print (self.ourOscUrl)
-        
-        
 
         #The following instance parameters are all set in announceOurselves
         self.serverFeatures = None
