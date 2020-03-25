@@ -331,11 +331,13 @@ class NSMClient(object):
         self.sock.setblocking(False) #We have waited for tha handshake. Now switch blocking off because we expect sock.recvfrom to be empty in 99.99...% of the time so we shouldn't wait for the answer.
         #After this point the host must include self.reactToMessage in its event loop
 
-    def send(self, path:str, listOfParameters:list, url=None):
+    def send(self, path:str, listOfParameters:list, host=None, port=None):
         """Send any osc message. Defaults to nsmd URL.
         Will not wait for an answer but return None."""
-        if not url:
-            url = self.nsmOSCUrl 
+        if host and port:
+            url = (host, port)
+        else:
+            url = self.nsmOSCUrl            
         msg = _OutgoingMessage(path)
         for arg in listOfParameters:
             msg.add_arg(arg) #type is auto-determined by outgoing message
