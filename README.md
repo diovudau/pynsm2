@@ -43,6 +43,7 @@ The nsmClient object has methods and variables such as:
 * nsmClient.announceSaveStatus(False)
   * Announce your save status (dirty = False / clean = True), If your program sends those messages set supportsSaveStatus = True when intializing NSMClient with both hideGUICallback and showGUICallback
 * nsmClient.sessionName
+* nsmClient.ourOscUrl = osc.udp://{ip}:{port}/  Use this to broadcast your presence, to handshake communication between different programs
 * nsmClient.announceGuiVisibility(bool)
   * Announce if your GUI is visible (True) or not (False). Only works if you initialized NSMClient with both hideGUICallback and showGUICallback. Don't forget to send it once for your state after starting your program.
 * nsmcClient.changeLabel(prettyName)
