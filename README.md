@@ -7,6 +7,7 @@ Copyright (c) 2014-2020, Laborejo Software Suite <info@laborejo.org>, All rights
 
 This library is licensed under the MIT license. Please check the file LICENSE for more information.
 
+This library has no version numbers, or releases. It is a "rolling" git. Copy it into your source and update only if you need new features.
 
 ## Short Instructions
 You can use exampleBoilerplate.py as a starting point, or copy nsmclient.py to your own program and import and initialize it as early as possible.
@@ -69,7 +70,3 @@ The nsmClient object has methods and variables such as:
 * The Non-Session-Manager by Jonathan Moore Liles <male@tuxfamily.org>: http://non.tuxfamily.org/nsm/
 * With help from code fragments from https://github.com/attwad/python-osc ( DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE v2 )
 * API documentation: http://non.tuxfamily.org/nsm/API.html
-
-## TODO
-* Convenience for programs that can change the session without restarting.
-* Full NSM API support in general
