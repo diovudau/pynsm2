@@ -260,7 +260,7 @@ class NSMClient(object):
 
     Does not run an event loop itself and depends on the host loop.
     E.g. a Qt timer or just a simple while True: sleep(0.1) in Python."""
-    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback=None, showGUICallback=None, broadcastCallback=None, loggingLevel = "info"):
+    def __init__(self, prettyName, supportsSaveStatus, saveCallback, openOrNewCallback, exitProgramCallback, hideGUICallback=None, showGUICallback=None, broadcastCallback=None, sessionIsLoadedCallback=None, loggingLevel = "info"):
 
         self.nsmOSCUrl = self.getNsmOSCUrl() #this fails and raises NSMNotRunningError if NSM is not available. Host programs can ignore it or exit their program.
 
@@ -285,9 +285,10 @@ class NSMClient(object):
         self.saveCallback = saveCallback
         self.exitProgramCallback = exitProgramCallback
         self.openOrNewCallback = openOrNewCallback #The host needs to: Create a jack client with ourClientNameUnderNSM - Open the saved file and all its resources
-        self.broadcastCallback = broadcastCallback if broadcastCallback else None 
-        self.hideGUICallback = hideGUICallback if hideGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
-        self.showGUICallback = showGUICallback if showGUICallback else None #if this stays None we don't ever need to check for it. This function will never be called by NSM anyway.
+        self.broadcastCallback = broadcastCallback
+        self.hideGUICallback = hideGUICallback
+        self.showGUICallback = showGUICallback
+        self.sessionIsLoadedCallback = sessionIsLoadedCallback
 
         #Reactions get the raw _IncomingMessage OSC object
         #A client can add to reactions.
@@ -295,24 +296,25 @@ class NSMClient(object):
                           "/nsm/client/save" : self._saveCallback,
                           "/nsm/client/show_optional_gui" : lambda msg: self.showGUICallback(),
                           "/nsm/client/hide_optional_gui" : lambda msg: self.hideGUICallback(),
+                          "/nsm/client/session_is_loaded" : self._sessionIsLoadedCallback,
                           #Hello source-code reader. You can add your own reactions here by nsmClient.reactions[oscpath]=func, where func gets the raw _IncomingMessage OSC object as argument.
                           #broadcast is handled directly by the function because it has more parameters                          
                           }
-        self.discardReactions = set(["/nsm/client/session_is_loaded"])
+        #self.discardReactions = set(["/nsm/client/session_is_loaded"])
+        self.discardReactions = set()
 
 
         #Networking and Init
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #internet, udp
         self.sock.bind(('', 0)) #pick a free port on localhost.
-
+        ip, port = self.sock.getsockname()               
+        self.ourOscUrl = f"osc.udp://{ip}:{port}/"
 
         self.executableName = self.getExecutableName()
 
         #UNIX Signals. Used for quit.
         signal(SIGTERM, self.sigtermHandler) #NSM sends only SIGTERM. #TODO: really? pynsm version 1 handled sigkill as well.
         signal(SIGINT, self.sigtermHandler)
-        ip, port = self.sock.getsockname()               
-        self.ourOscUrl = f"osc.udp://{ip}:{port}/"
 
         #The following instance parameters are all set in announceOurselves
         self.serverFeatures = None
@@ -330,6 +332,35 @@ class NSMClient(object):
 
         self.sock.setblocking(False) #We have waited for tha handshake. Now switch blocking off because we expect sock.recvfrom to be empty in 99.99...% of the time so we shouldn't wait for the answer.
         #After this point the host must include self.reactToMessage in its event loop
+
+
+    def reactToMessage(self):
+        """This is the main loop message. It is added to the clients event loop."""
+        try:
+            data, addr = self.sock.recvfrom(4096) #4096 is quite big. We don't expect nsm messages this big. Better safe than sorry. However, messages will crash the program if they are bigger than 4096.  
+        except BlockingIOError: #happens while no data is received. Has nothing to do with blocking or not.
+            return None
+
+        msg = _IncomingMessage(data)       
+        if msg.oscpath in self.reactions:
+            self.reactions[msg.oscpath](msg)
+        elif msg.oscpath in self.discardReactions:
+            pass
+        elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/open", "Loaded."]: #NSM sends that all programs of the session were loaded.
+            logger.info ("Got /reply Loaded from NSM Server")
+        elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/save", "Saved."]: #NSM sends that all program-states are saved. Does only happen from the general save instruction, not when saving our client individually
+            logger.info ("Got /reply Saved from NSM Server")
+        elif msg.isBroadcast:
+            if self.broadcastCallback:
+                logger.info (f"Got broadcast with messagePath {msg.oscpath} and listOfArguments {msg.params}")            
+                self.broadcastCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM, msg.oscpath, msg.params)
+            else:
+                logger.info (f"No callback for broadcast! Got messagePath {msg.oscpath} and listOfArguments {msg.params}")            
+        elif msg.oscpath == "/error":
+            logger.warning("Got /error from NSM Server. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
+        else:            
+            logger.warning("Reaction not implemented:. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
+
 
     def send(self, path:str, listOfParameters:list, host=None, port=None):
         """Send any osc message. Defaults to nsmd URL.
@@ -452,31 +483,11 @@ class NSMClient(object):
         #it is assumed that after saving the state is clear
         self.announceSaveStatus(isClean = True)
 
-    def reactToMessage(self):
-        try:
-            data, addr = self.sock.recvfrom(4096) #4096 is quite big. We don't expect nsm messages this big. Better safe than sorry. See next lines comment
-        except BlockingIOError: #happens while no data is received. Has nothing to do with blocking or not.
-            return None
 
-        msg = _IncomingMessage(data) #However, messages will crash the program if they are bigger than 4096.        
-        if msg.oscpath in self.reactions:
-            self.reactions[msg.oscpath](msg)        
-        elif msg.oscpath in self.discardReactions:
-            pass
-        elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/open", "Loaded."]: #NSM sends that all programs of the session were loaded.
-            logger.info ("Got /reply Loaded from NSM Server")
-        elif msg.oscpath == "/reply" and msg.params == ["/nsm/server/save", "Saved."]: #NSM sends that all program-states are saved. Does only happen from the general save instruction, not when saving our client individually
-            logger.info ("Got /reply Saved from NSM Server")
-        elif msg.isBroadcast:
-            if self.broadcastCallback:
-                logger.info (f"Got broadcast with messagePath {msg.oscpath} and listOfArguments {msg.params}")            
-                self.broadcastCallback(self.ourPath, self.sessionName, self.ourClientNameUnderNSM, msg.oscpath, msg.params)
-            else:
-                logger.info (f"No callback for broadcast! Got messagePath {msg.oscpath} and listOfArguments {msg.params}")            
-        elif msg.oscpath == "/error":
-            logger.warning("Got /error from NSM Server. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
-        else:            
-            logger.warning("Reaction not implemented:. Path: {} , Parameter: {}".format(msg.oscpath, msg.params))
+    def _sessionIsLoadedCallback(self, msg):
+        if self.sessionIsLoadedCallback:
+            logger.info("Telling our client that the session has finished loading")
+            self.sessionIsLoadedCallback()
 
     def sigtermHandler(self, signal, frame):
         """Wait for the user to quit the program
